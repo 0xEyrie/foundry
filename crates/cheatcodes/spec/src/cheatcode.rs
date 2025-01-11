@@ -128,6 +128,12 @@ pub enum Group {
     ///
     /// Safety: safe.
     Utilities,
+    /// Indexing purposes
+    ///
+    /// Examples: `index-save`.
+    ///
+    /// Safety: safe.
+    Index,
 }
 
 impl Group {
@@ -139,14 +145,15 @@ impl Group {
     pub const fn safety(self) -> Option<Safety> {
         match self {
             Self::Evm | Self::Testing => None,
-            Self::Scripting |
-            Self::Filesystem |
-            Self::Environment |
-            Self::String |
-            Self::Json |
-            Self::Toml |
-            Self::Crypto |
-            Self::Utilities => Some(Safety::Safe),
+            Self::Scripting
+            | Self::Filesystem
+            | Self::Environment
+            | Self::String
+            | Self::Json
+            | Self::Toml
+            | Self::Crypto
+            | Self::Utilities
+            | Self::Index => Some(Safety::Safe),
         }
     }
 
@@ -164,6 +171,7 @@ impl Group {
             Self::Toml => "toml",
             Self::Crypto => "crypto",
             Self::Utilities => "utilities",
+            Self::Index => "index",
         }
     }
 }

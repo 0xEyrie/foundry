@@ -318,6 +318,13 @@
           "enum": [
             "utilities"
           ]
+        },
+        {
+          "description": "Indexing purposes\n\nExamples: `index-save`.\n\nSafety: safe.",
+          "type": "string",
+          "enum": [
+            "index"
+          ]
         }
       ]
     },

@@ -8619,6 +8619,26 @@
     },
     {
       "func": {
+        "id": "save",
+        "description": "Gets the address for a given private key.",
+        "declaration": "function save(bytes calldata data) external;",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "save(bytes)",
+        "selector": "0x9c597f5a",
+        "selectorBytes": [
+          156,
+          89,
+          127,
+          90
+        ]
+      },
+      "group": "evm",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
         "id": "selectFork",
         "description": "Takes a fork identifier created by `createFork` and sets the corresponding forked state as active.",
         "declaration": "function selectFork(uint256 forkId) external;",

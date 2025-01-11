@@ -424,6 +424,7 @@ interface Vm {
     function rpcUrls() external view returns (string[2][] memory urls);
     function rpc(string calldata method, string calldata params) external returns (bytes memory data);
     function rpc(string calldata urlOrAlias, string calldata method, string calldata params) external returns (bytes memory data);
+    function save(bytes calldata data) external;
     function selectFork(uint256 forkId) external;
     function serializeAddress(string calldata objectKey, string calldata valueKey, address value) external returns (string memory json);
     function serializeAddress(string calldata objectKey, string calldata valueKey, address[] calldata values) external returns (string memory json);
