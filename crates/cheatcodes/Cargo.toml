@@ -69,3 +69,6 @@ tracing.workspace = true
 walkdir.workspace = true
 proptest.workspace = true
 serde.workspace = true
+postgres = "0.19.10"
+tokio.workspace = true
+uuid = "1.15.1"

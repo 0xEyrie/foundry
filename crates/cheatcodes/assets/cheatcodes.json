@@ -3449,6 +3449,26 @@
     },
     {
       "func": {
+        "id": "connectDb",
+        "description": "Connect SQL Database",
+        "declaration": "function connectDb(PostgresDb sqldb) external;",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "connectDb((string,uint256,string,string,string))",
+        "selector": "0x631ac903",
+        "selectorBytes": [
+          99,
+          26,
+          201,
+          3
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
         "id": "contains",
         "description": "Returns true if `search` is found in `subject`, false otherwise.",
         "declaration": "function contains(string calldata subject, string calldata search) external returns (bool result);",
@@ -7690,6 +7710,26 @@
         ]
       },
       "group": "crypto",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "queryDb",
+        "description": "Query SQL to Database",
+        "declaration": "function queryDb(uint128 id, string calldata query) external returns (string memory);",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "queryDb(uint128,string)",
+        "selector": "0x9c4d372f",
+        "selectorBytes": [
+          156,
+          77,
+          55,
+          47
+        ]
+      },
+      "group": "database",
       "status": "stable",
       "safety": "safe"
     },

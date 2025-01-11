@@ -166,6 +166,7 @@ interface Vm {
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) external pure returns (address);
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) external pure returns (address);
     function computeCreateAddress(address deployer, uint256 nonce) external pure returns (address);
+    function connectDb(PostgresDb sqldb) external;
     function contains(string calldata subject, string calldata search) external returns (bool result);
     function cool(address target) external;
     function copyFile(string calldata from, string calldata to) external returns (uint64 copied);
@@ -378,6 +379,7 @@ interface Vm {
     function promptSecretUint(string calldata promptText) external returns (uint256);
     function promptUint(string calldata promptText) external returns (uint256);
     function publicKeyP256(uint256 privateKey) external pure returns (uint256 publicKeyX, uint256 publicKeyY);
+    function queryDb(uint128 id, string calldata query) external returns (string memory);
     function randomAddress() external returns (address);
     function randomBool() external view returns (bool);
     function randomBytes(uint256 len) external view returns (bytes memory);

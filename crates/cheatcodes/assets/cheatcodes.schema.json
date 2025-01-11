@@ -318,6 +318,13 @@
           "enum": [
             "utilities"
           ]
+        },
+        {
+          "description": "Query database purposes\n\nExamples: `queryDb`.\n\nSafety: safe.",
+          "type": "string",
+          "enum": [
+            "database"
+          ]
         }
       ]
     },

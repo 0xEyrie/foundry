@@ -1,6 +1,7 @@
 //! Cheatcode EVM inspector.
 
 use crate::{
+    database::PostgresClient,
     evm::{
         mapping::{self, MappingSlots},
         mock::{MockCallDataContext, MockCallReturnData},
@@ -486,6 +487,8 @@ pub struct Cheatcodes {
     pub deprecated: HashMap<&'static str, Option<&'static str>>,
     /// Unlocked wallets used in scripts and testing of scripts.
     pub wallets: Option<Wallets>,
+
+    pub db_client: Option<PostgresClient>,
 }
 
 // This is not derived because calling this in `fn new` with `..Default::default()` creates a second
@@ -535,6 +538,7 @@ impl Cheatcodes {
             arbitrary_storage: Default::default(),
             deprecated: Default::default(),
             wallets: Default::default(),
+            db_client: Default::default(),
         }
     }
 
@@ -546,6 +550,11 @@ impl Cheatcodes {
     /// Sets the unlocked wallets.
     pub fn set_wallets(&mut self, wallets: Wallets) {
         self.wallets = Some(wallets);
+    }
+
+    /// Set the db client.
+    pub fn set_db_client(&mut self, client: PostgresClient) {
+        self.db_client = Some(client);
     }
 
     /// Decodes the input data and applies the cheatcode.
@@ -576,13 +585,13 @@ impl Cheatcodes {
 
         apply_dispatch(
             &decoded,
-            &mut CheatsCtxt {
+            &mut (CheatsCtxt {
                 state: self,
                 ecx: &mut ecx.inner,
                 precompiles: &mut ecx.precompiles,
                 gas_limit: call.gas_limit,
                 caller,
-            },
+            }),
             executor,
         )
     }
@@ -675,7 +684,7 @@ impl Cheatcodes {
                     let account = &ecx.journaled_state.state()[&broadcast.new_origin];
                     self.broadcastable_transactions.push_back(BroadcastableTransaction {
                         rpc: ecx.db.active_fork_url(),
-                        transaction: TransactionRequest {
+                        transaction: (TransactionRequest {
                             from: Some(broadcast.new_origin),
                             to: None,
                             value: Some(input.value()),
@@ -683,7 +692,7 @@ impl Cheatcodes {
                             nonce: Some(account.info.nonce),
                             gas: if is_fixed_gas_limit { Some(input.gas_limit()) } else { None },
                             ..Default::default()
-                        }
+                        })
                         .into(),
                     });
 
@@ -721,8 +730,7 @@ impl Cheatcodes {
     }
 
     // common create_end functionality for both legacy and EOF.
-    fn create_end_common(&mut self, ecx: Ecx, mut outcome: CreateOutcome) -> CreateOutcome
-where {
+    fn create_end_common(&mut self, ecx: Ecx, mut outcome: CreateOutcome) -> CreateOutcome {
         let ecx = &mut ecx.inner;
 
         // Clean up pranks
@@ -797,11 +805,10 @@ where {
                 if outcome.result.is_revert() {
                     last_depth.iter_mut().for_each(|element| {
                         element.reverted = true;
-                        element
-                            .storageAccesses
-                            .iter_mut()
-                            .for_each(|storage_access| storage_access.reverted = true);
-                    })
+                        element.storageAccesses.iter_mut().for_each(|storage_access| {
+                            storage_access.reverted = true;
+                        });
+                    });
                 }
                 let create_access = last_depth.first_mut().expect("empty AccountAccesses");
                 // Assert that we're at the correct depth before recording post-create state
@@ -859,7 +866,7 @@ where {
                             gas,
                         },
                         memory_offset: call.return_memory_offset.clone(),
-                    })
+                    });
                 }
             };
             let prev = account.info.nonce;
@@ -908,8 +915,7 @@ where {
                     // Both calldata match, taking the length of the assumed smaller one (which will have at least the selector), and
                     *calldata == call.input[..calldata.len()] &&
                     // The value matches, if provided
-                    expected
-                        .value.is_none_or(|value| Some(value) == call.transfer_value()) &&
+                    expected.value.is_none_or(|value| Some(value) == call.transfer_value()) &&
                     // The gas matches, if provided
                     expected.gas.is_none_or(|gas| gas == call.gas_limit) &&
                     // The minimum gas matches, if provided
@@ -925,7 +931,7 @@ where {
             let ctx =
                 MockCallDataContext { calldata: call.input.clone(), value: call.transfer_value() };
 
-            if let Some(return_data_queue) = match mocks.get_mut(&ctx) {
+            if let Some(return_data_queue) = (match mocks.get_mut(&ctx) {
                 Some(queue) => Some(queue),
                 None => mocks
                     .iter_mut()
@@ -934,14 +940,14 @@ where {
                             mock.value.is_none_or(|value| Some(value) == call.transfer_value())
                     })
                     .map(|(_, v)| v),
-            } {
-                if let Some(return_data) = if return_data_queue.len() == 1 {
+            }) {
+                if let Some(return_data) = (if return_data_queue.len() == 1 {
                     // If the mocked calls stack has a single element in it, don't empty it
                     return_data_queue.front().map(|x| x.to_owned())
                 } else {
                     // Else, we pop the front element
                     return_data_queue.pop_front()
-                } {
+                }) {
                     return Some(CallOutcome {
                         result: InterpreterResult {
                             result: return_data.ret_type,
@@ -1060,7 +1066,7 @@ where {
                     }
                 } else if broadcast.single_call {
                     let msg =
-                    "`staticcall`s are not allowed after `broadcast`; use `startBroadcast` instead";
+                        "`staticcall`s are not allowed after `broadcast`; use `startBroadcast` instead";
                     return Some(CallOutcome {
                         result: InterpreterResult {
                             result: InstructionResult::Revert,
@@ -1401,11 +1407,10 @@ impl Inspector<&mut dyn DatabaseExt> for Cheatcodes {
                 if outcome.result.is_revert() {
                     last_recorded_depth.iter_mut().for_each(|element| {
                         element.reverted = true;
-                        element
-                            .storageAccesses
-                            .iter_mut()
-                            .for_each(|storage_access| storage_access.reverted = true);
-                    })
+                        element.storageAccesses.iter_mut().for_each(|storage_access| {
+                            storage_access.reverted = true;
+                        });
+                    });
                 }
                 let call_access = last_recorded_depth.first_mut().expect("empty AccountAccesses");
                 // Assert that we're at the correct depth before recording post-call state changes.
@@ -1439,10 +1444,9 @@ impl Inspector<&mut dyn DatabaseExt> for Cheatcodes {
         // events will not be matched)
 
         // First, check that we're at the call depth where the emits were declared from.
-        let should_check_emits = self
-            .expected_emits
-            .iter()
-            .any(|(expected, _)| expected.depth == ecx.journaled_state.depth()) &&
+        let should_check_emits = self.expected_emits
+                .iter()
+                .any(|(expected, _)| expected.depth == ecx.journaled_state.depth()) &&
             // Ignore staticcalls
             !call.is_static;
         if should_check_emits {
@@ -1498,7 +1502,7 @@ impl Inspector<&mut dyn DatabaseExt> for Cheatcodes {
             // All emits were found, we're good.
             // Clear the queue, as we expect the user to declare more events for the next call
             // if they wanna match further events.
-            self.expected_emits.clear()
+            self.expected_emits.clear();
         }
 
         // this will ensure we don't have false positives when trying to diagnose reverts in fork
@@ -1730,7 +1734,7 @@ impl Cheatcodes {
         let (key, target_address) = if interpreter.current_opcode() == op::SLOAD {
             (try_or_return!(interpreter.stack().peek(0)), interpreter.contract().target_address)
         } else {
-            return
+            return;
         };
 
         let Ok(value) = ecx.sload(target_address, key) else {
@@ -1761,7 +1765,9 @@ impl Cheatcodes {
     /// Records storage slots reads and writes.
     #[cold]
     fn record_accesses(&mut self, interpreter: &mut Interpreter) {
-        let Some(access) = &mut self.accesses else { return };
+        let Some(access) = &mut self.accesses else {
+            return;
+        };
         match interpreter.current_opcode() {
             op::SLOAD => {
                 let key = try_or_return!(interpreter.stack().peek(0));
@@ -1777,11 +1783,15 @@ impl Cheatcodes {
 
     #[cold]
     fn record_state_diffs(&mut self, interpreter: &mut Interpreter, ecx: Ecx) {
-        let Some(account_accesses) = &mut self.recorded_account_diffs_stack else { return };
+        let Some(account_accesses) = &mut self.recorded_account_diffs_stack else {
+            return;
+        };
         match interpreter.current_opcode() {
             op::SELFDESTRUCT => {
                 // Ensure that we're not selfdestructing a context recording was initiated on
-                let Some(last) = account_accesses.last_mut() else { return };
+                let Some(last) = account_accesses.last_mut() else {
+                    return;
+                };
 
                 // get previous balance and initialized status of the target account
                 let target = try_or_return!(interpreter.stack().peek(0));
@@ -1819,7 +1829,9 @@ impl Cheatcodes {
             }
 
             op::SLOAD => {
-                let Some(last) = account_accesses.last_mut() else { return };
+                let Some(last) = account_accesses.last_mut() else {
+                    return;
+                };
 
                 let key = try_or_return!(interpreter.stack().peek(0));
                 let address = interpreter.contract().target_address;
@@ -1844,7 +1856,9 @@ impl Cheatcodes {
                 append_storage_access(last, access, ecx.journaled_state.depth());
             }
             op::SSTORE => {
-                let Some(last) = account_accesses.last_mut() else { return };
+                let Some(last) = account_accesses.last_mut() else {
+                    return;
+                };
 
                 let key = try_or_return!(interpreter.stack().peek(0));
                 let value = try_or_return!(interpreter.stack().peek(1));
@@ -2066,7 +2080,7 @@ impl Cheatcodes {
 
                     _ => {}
                 }
-            }
+            };
         }
 
         // Check if the current opcode can write to memory, and if so, check if the memory
@@ -2088,7 +2102,7 @@ impl Cheatcodes {
             (CREATE, 1, 2, false),
             (CREATE2, 1, 2, false),
             (RETURN, 0, 1, false),
-            (REVERT, 0, 1, false),
+            (REVERT, 0, 1, false)
         );
     }
 }
@@ -2129,10 +2143,10 @@ fn check_if_fixed_gas_limit(ecx: InnerEcx, call_gas_limit: u64) -> bool {
     // TODO: Find a way to reliably make this determination.
     // For example by generating it in the compilation or EVM simulation process
     U256::from(ecx.env.tx.gas_limit) > ecx.env.block.gas_limit &&
-        U256::from(call_gas_limit) <= ecx.env.block.gas_limit
+        U256::from(call_gas_limit) <= ecx.env.block.gas_limit &&
         // Transfers in forge scripts seem to be estimated at 2300 by revm leading to "Intrinsic
         // gas too low" failure when simulated on chain
-        && call_gas_limit > 2300
+        call_gas_limit > 2300
 }
 
 /// Returns true if the kind of account access is a call.
@@ -2163,7 +2177,7 @@ fn append_storage_access(
             last.first_mut().unwrap().storageAccesses.push(storage_access);
         } else {
             let last_record = last.last_mut().unwrap();
-            if last_record.kind as u8 == crate::Vm::AccountAccessKind::Resume as u8 {
+            if (last_record.kind as u8) == (crate::Vm::AccountAccessKind::Resume as u8) {
                 last_record.storageAccesses.push(storage_access);
             } else {
                 let entry = last.first().unwrap();

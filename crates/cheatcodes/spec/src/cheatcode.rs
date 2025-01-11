@@ -128,6 +128,12 @@ pub enum Group {
     ///
     /// Safety: safe.
     Utilities,
+    /// Query database purposes
+    ///
+    /// Examples: `queryDb`.
+    ///
+    /// Safety: safe.
+    Database,
 }
 
 impl Group {
@@ -146,7 +152,8 @@ impl Group {
             Self::Json |
             Self::Toml |
             Self::Crypto |
-            Self::Utilities => Some(Safety::Safe),
+            Self::Utilities |
+            Self::Database => Some(Safety::Safe),
         }
     }
 
@@ -164,6 +171,7 @@ impl Group {
             Self::Toml => "toml",
             Self::Crypto => "crypto",
             Self::Utilities => "utilities",
+            Self::Database => "database",
         }
     }
 }

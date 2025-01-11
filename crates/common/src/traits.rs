@@ -3,6 +3,8 @@
 use alloy_json_abi::Function;
 use alloy_primitives::Bytes;
 use alloy_sol_types::SolError;
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::{fmt, path::Path};
 
 /// Test filter.
@@ -120,6 +122,10 @@ pub enum TestFunctionKind {
     AfterInvariant,
     /// `fixture*`.
     Fixture,
+    /// index
+    IndexByEvents { event_name: &'static str },
+    /// index
+    IndexByBlock { start: Option<u64>, end: Option<u64> },
     /// Unknown kind.
     Unknown,
 }
@@ -128,6 +134,12 @@ impl TestFunctionKind {
     /// Classify a function.
     #[inline]
     pub fn classify(name: &str, has_inputs: bool) -> Self {
+        lazy_static! {
+            static ref EVENT_REGEX: Regex = Regex::new(r"^indexByEvents_(.+)$").unwrap();
+            static ref BLOCK_REGEX: Regex =
+                Regex::new(r"^indexByBlock(?:From(\d+))?(?:To(\d+))?$").unwrap();
+        }
+
         match () {
             _ if name.starts_with("test") => {
                 let should_fail = name.starts_with("testFail");
@@ -143,6 +155,20 @@ impl TestFunctionKind {
             _ if name.eq_ignore_ascii_case("setup") => Self::Setup,
             _ if name.eq_ignore_ascii_case("afterinvariant") => Self::AfterInvariant,
             _ if name.starts_with("fixture") => Self::Fixture,
+            _ if EVENT_REGEX.is_match(name) => {
+                let event_name = EVENT_REGEX
+                    .captures(name)
+                    .and_then(|cap| cap.get(1))
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
+                Self::IndexByEvents { event_name: Box::leak(event_name.into_boxed_str()) }
+            }
+            _ if BLOCK_REGEX.is_match(name) => {
+                let caps = BLOCK_REGEX.captures(name).unwrap();
+                let start = caps.get(1).and_then(|m| m.as_str().parse().ok());
+                let end = caps.get(2).and_then(|m| m.as_str().parse().ok());
+                Self::IndexByBlock { start, end }
+            }
             _ => Self::Unknown,
         }
     }
@@ -158,6 +184,8 @@ impl TestFunctionKind {
             Self::InvariantTest => "invariant",
             Self::AfterInvariant => "afterInvariant",
             Self::Fixture => "fixture",
+            Self::IndexByEvents { event_name: _ } => "indexByEvents",
+            Self::IndexByBlock { start: _, end: _ } => "indexByBlock",
             Self::Unknown => "unknown",
         }
     }

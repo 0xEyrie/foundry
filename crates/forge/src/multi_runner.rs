@@ -179,7 +179,7 @@ impl MultiContractRunner {
             "Found {} test contracts out of {} in {:?}",
             contracts.len(),
             self.contracts.len(),
-            find_time,
+            find_time
         );
 
         if show_progress {
@@ -259,6 +259,56 @@ impl MultiContractRunner {
 
         r
     }
+
+    pub fn index(&mut self, filter: &dyn TestFilter, tx: mpsc::Sender<(String, SuiteResult)>) {
+        let tokio_handle = tokio::runtime::Handle::current();
+        trace!("running all indexers");
+
+        // The DB backend that serves all the data.
+        let db = Backend::spawn(self.fork.take());
+
+        let find_timer = Instant::now();
+        let contracts = self.matching_contracts(filter).collect::<Vec<_>>();
+        let find_time = find_timer.elapsed();
+        debug!(
+            "Found {} indexer contracts out of {} in {:?}",
+            contracts.len(),
+            self.contracts.len(),
+            find_time
+        );
+
+        // index
+        contracts.par_iter().for_each(|&(id, contract)| {
+            let _guard = tokio_handle.enter();
+            let result = self.run_test_suite(id, contract, &db, filter, &tokio_handle, None);
+            let _ = tx.send((id.identifier(), result));
+        })
+    }
+
+    // pub fn index(&mut self, filter: &dyn TestFilter, tx: mpsc::Sender<(String, SuiteResult)>) {
+    //     let tokio_handle = tokio::runtime::Handle::current();
+    //     trace!("running all indexers");
+
+    //     // The DB backend that serves all the data.
+    //     let db = Backend::spawn(self.fork.take());
+
+    //     let find_timer = Instant::now();
+    //     let contracts = self.matching_contracts(filter).collect::<Vec<_>>();
+    //     let find_time = find_timer.elapsed();
+    //     debug!(
+    //         "Found {} indexer contracts out of {} in {:?}",
+    //         contracts.len(),
+    //         self.contracts.len(),
+    //         find_time
+    //     );
+
+    //     // index
+    //     contracts.par_iter().for_each(|&(id, contract)| {
+    //         let _guard = tokio_handle.enter();
+    //         let result = self.run_test_suite(id, contract, &db, filter, &tokio_handle, None);
+    //         let _ = tx.send((id.identifier(), result));
+    //     })
+    // }
 }
 
 /// Configuration for the test runner.
@@ -494,7 +544,9 @@ impl MultiContractRunnerBuilder {
         let mut deployable_contracts = DeployableContracts::default();
 
         for (id, contract) in linked_contracts.iter() {
-            let Some(abi) = &contract.abi else { continue };
+            let Some(abi) = &contract.abi else {
+                continue;
+            };
 
             // if it's a test, link it and add to deployable contracts
             if abi.constructor.as_ref().map(|c| c.inputs.is_empty()).unwrap_or(true) &&
@@ -542,7 +594,8 @@ impl MultiContractRunnerBuilder {
 }
 
 pub fn matches_contract(id: &ArtifactId, abi: &JsonAbi, filter: &dyn TestFilter) -> bool {
-    (filter.matches_path(&id.source) && filter.matches_contract(&id.name)) &&
+    filter.matches_path(&id.source) &&
+        filter.matches_contract(&id.name) &&
         abi.functions().any(|func| is_matching_test(func, filter))
 }
 

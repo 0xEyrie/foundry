@@ -324,6 +324,15 @@ interface Vm {
         address implementation;
     }
 
+    /// SQL Database options
+    struct PostgresDb {
+        string host;
+        uint256 port;
+        string user;
+        string password;
+        string name;
+    }
+
     // ======== EVM ========
 
     /// Gets the address for a given private key.
@@ -2704,6 +2713,54 @@ interface Vm {
     /// Utility cheatcode to set arbitrary storage for given target address.
     #[cheatcode(group = Utilities)]
     function setArbitraryStorage(address target) external;
+
+    /// Connect SQL Database
+    #[cheatcode(group = Database, safety = Safe)]
+    function connectDb(PostgresDb sqldb) external;
+
+    /// Open transaction and automatically commit all of transactions in end execution
+    #[cheatcode(group = Database, safety = Safe)]
+    function openTransaction() external returns(uint128);
+
+    /// Commit transaction and close transaction
+    #[cheatcode(group = Database, safety = Safe)]
+    function commitTransaction(uint128 transactionId) external;
+
+    /// Commit all of open transactions and close transaction
+    #[cheatcode(group = Database, safety = Safe)]
+    function commitTransactions() external;
+
+    /// Rollback transaction and close transactions
+    #[cheatcode(group = Database, safety = Safe)]
+    function rollbackTransaction(uint128 transactionId) external;
+
+    /// Rollback all of transactions and close transactions
+    #[cheatcode(group = Database, safety = Safe)]
+    function rollbackTransactions() external;
+
+    /// Query SQL to Database
+    #[cheatcode(group = Database, safety = Safe)]
+    function queryOpt(string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[] memory);
+
+    /// Query SQL to Database
+    #[cheatcode(group = Database, safety = Safe)]
+    function query(string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[][] memory);
+
+    /// Query SQL in Database transaction
+    #[cheatcode(group = Database, safety = Safe)]
+    function queryOptInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[] memory);
+
+    /// Query SQL in Database transaction
+    #[cheatcode(group = Database, safety = Safe)]
+    function queryInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[][] memory);
+
+    /// Execute SQL to Database
+    #[cheatcode(group = Database, safety = Safe)]
+    function execute(string calldata query, bytes[] calldata params) external returns (uint64);
+
+    /// Execute SQL in Database transaction
+    #[cheatcode(group = Database, safety = Safe)]
+    function executeInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params) external returns (uint64);
 }
 }
 
