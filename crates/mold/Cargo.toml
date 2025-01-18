@@ -1,0 +1,23 @@
+[package]
+name = "mold"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+foundry-common.workspace = true
+foundry-config.workspace = true
+foundry-cli.workspace = true
+
+eyre.workspace = true
+clap = { version = "4", features = ["derive", "env", "unicode", "wrap_help"] }
+clap_complete = "4"
+clap_complete_fig = "4"
+
+[lints]
+workspace = true

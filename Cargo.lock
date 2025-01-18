@@ -5893,6 +5893,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mold"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "clap_complete_fig",
+ "eyre",
+ "foundry-cli",
+ "foundry-common",
+ "foundry-config",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
