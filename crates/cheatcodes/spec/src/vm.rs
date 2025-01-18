@@ -330,6 +330,10 @@ interface Vm {
         address Addr2;
     }
 
+    // Structs
+
+    // Functions
+
     /// Gets the address for a given private key.
     #[cheatcode(group = Evm, safety = Safe)]
     function save(UniswapSend calldata data) external;

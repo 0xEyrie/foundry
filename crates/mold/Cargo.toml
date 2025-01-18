@@ -19,5 +19,11 @@ clap = { version = "4", features = ["derive", "env", "unicode", "wrap_help"] }
 clap_complete = "4"
 clap_complete_fig = "4"
 
+sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio"] }
+tokio = { version = "1.43.0", features = ["full"] }
+tokio-postgres = "0.7.12"
+
+[dev-dependencies]
+
 [lints]
 workspace = true

@@ -3,6 +3,7 @@ use eyre::Result;
 use foundry_cli::{handler, utils};
 use opts::{Mold, MoldSubcommand};
 
+mod db;
 mod generate;
 mod opts;
 
@@ -23,6 +24,6 @@ fn run() -> Result<()> {
     args.global.init()?;
 
     match args.cmd {
-        MoldSubcommand::Generate(cmd) => cmd.run(),
+        MoldSubcommand::Generate(cmd) => utils::block_on(cmd.run()),
     }
 }
