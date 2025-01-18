@@ -324,11 +324,15 @@ interface Vm {
         address implementation;
     }
 
-    // ======== EVM ========
+    /// Holds a signed EIP-7702 authorization for an authority account to delegate to an implementation.
+    struct UniswapSend {
+        address Addr1;
+        address Addr2;
+    }
 
     /// Gets the address for a given private key.
     #[cheatcode(group = Evm, safety = Safe)]
-    function save(bytes calldata data) external;
+    function save(UniswapSend calldata data) external;
 
     /// Gets the address for a given private key.
     #[cheatcode(group = Evm, safety = Safe)]

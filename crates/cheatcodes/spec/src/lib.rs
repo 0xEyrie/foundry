@@ -88,6 +88,7 @@ impl Cheatcodes<'static> {
                 Vm::DebugStep::STRUCT.clone(),
                 Vm::BroadcastTxSummary::STRUCT.clone(),
                 Vm::SignedDelegation::STRUCT.clone(),
+                Vm::UniswapSend::STRUCT.clone(),
             ]),
             enums: Cow::Owned(vec![
                 Vm::CallerMode::ENUM.clone(),
@@ -169,7 +170,7 @@ interface Vm {{
         if let Ok(old_contents) = fs::read_to_string(file) {
             if normalize_newlines(&old_contents) == normalize_newlines(contents) {
                 // File is already up to date.
-                return
+                return;
             }
         }
 

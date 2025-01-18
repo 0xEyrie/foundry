@@ -143,6 +143,16 @@
           "description": "Represents a CREATE2 broadcast tx."
         }
       ]
+    },
+    {
+      "name": "Indexed",
+      "description": "Holds a signed EIP-7702 authorization for an authority account to delegate to an implementation.",
+      "variants": [
+        {UniswapCall
+          "name": "address_indexed",
+          "description": ""
+        }
+      ]
     }
   ],
   "structs": [
@@ -602,6 +612,22 @@
           "name": "implementation",
           "ty": "address",
           "description": "Address of the contract implementation that will be delegated to.\n Gets encoded into delegation code: 0xef0100 || implementation."
+        }
+      ]
+    },
+    {
+      "name": "UniswapSend",
+      "description": "Holds a signed EIP-7702 authorization for an authority account to delegate to an implementation.",
+      "fields": [
+        {
+          "name": "Addr1",
+          "ty": "Indexed",
+          "description": ""
+        },
+        {
+          "name": "Addr2",
+          "ty": "address",
+          "description": ""
         }
       ]
     }
@@ -8621,16 +8647,16 @@
       "func": {
         "id": "save",
         "description": "Gets the address for a given private key.",
-        "declaration": "function save(bytes calldata data) external;",
+        "declaration": "function save(UniswapSend calldata data) external;",
         "visibility": "external",
         "mutability": "",
-        "signature": "save(bytes)",
-        "selector": "0x9c597f5a",
+        "signature": "save((uint8,address))",
+        "selector": "0x64b2f4c8",
         "selectorBytes": [
-          156,
-          89,
-          127,
-          90
+          100,
+          178,
+          244,
+          200
         ]
       },
       "group": "evm",
