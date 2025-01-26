@@ -1,10 +1,10 @@
 #[macro_export]
 macro_rules! sol_function {
-    ($fn_name:expr, $data_type:expr) => {
+    ($label:expr) => {
         format!(
             "#[cheatcode(group = Evm, safety = Safe)]
-            function {}({} calldata data) external;",
-            $fn_name, $data_type
+            function save_{}({} calldata data) external;",
+            $label, $label
         )
     };
 }
@@ -59,4 +59,11 @@ impl Cheatcode for {label} {{
             db_binds = db_binds,
         )
     }};
+}
+
+#[macro_export]
+macro_rules! sol_impl_new {
+    ($label:expr) => {
+        format!("Vm::{}::STRUCT.clone(),", $label)
+    };
 }

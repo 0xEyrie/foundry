@@ -18,6 +18,7 @@ pub fn db_gen_query_create(ctx: &StructCtx) -> String {
 }
 
 pub async fn db_table_create(db: Arc<Database>, ctx: &StructCtx) {
+    // Dev purposes
     let drop_query = r#"
 DROP TABLE IF EXISTS UniswapCall;
 "#;
