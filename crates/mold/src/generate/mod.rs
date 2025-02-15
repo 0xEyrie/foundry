@@ -27,12 +27,12 @@ static FN_INDICATOR: &str = "// Functions";
 static HANDLER_INDICATOR: &str = "// Handlers";
 static IMPL_NEW_INDICATOR: &str = "// Impl new";
 static SRC_PATH: &str = "crates/mold/a.sol";
-static SPEC_VM_PATH: &str = "crates/mold/test.rs";
-static INDEX_PATH: &str = "crates/mold/test.rs";
-static SPEC_LIB_PATH: &str = "crates/mold/test.rs";
-//static SPEC_VM_PATH: &str = "crates/cheatcodes/spec/src/vm.rs";
-//static INDEX_PATH: &str = "crates/cheatcodes/src/index.rs";
-//static SPEC_LIB_PATH: &str = "crates/cheatcodes/spec/src/lib.rs";
+//static SPEC_VM_PATH: &str = "crates/mold/test.rs";
+//static INDEX_PATH: &str = "crates/mold/test.rs";
+//static SPEC_LIB_PATH: &str = "crates/mold/test.rs";
+static SPEC_VM_PATH: &str = "crates/cheatcodes/spec/src/vm.rs";
+static INDEX_PATH: &str = "crates/cheatcodes/src/index.rs";
+static SPEC_LIB_PATH: &str = "crates/cheatcodes/spec/src/lib.rs";
 
 fn file_read(buf: &mut String, path: &str) -> Result<()> {
     let mut file = File::open(path)?;
