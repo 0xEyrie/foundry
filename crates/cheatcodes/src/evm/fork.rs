@@ -5,7 +5,7 @@ use crate::{
 use alloy_dyn_abi::DynSolValue;
 use alloy_primitives::{B256, U256};
 use alloy_provider::Provider;
-use alloy_rpc_types::Filter;
+use alloy_rpc_types::{eth, Filter};
 use alloy_sol_types::SolValue;
 use foundry_common::provider::ProviderBuilder;
 use foundry_evm_core::fork::CreateFork;
@@ -240,7 +240,7 @@ impl Cheatcode for eth_getLogsCall {
         };
 
         if topics.len() > 4 {
-            bail!("topics array must contain at most 4 elements")
+            bail!("topics array must contain at most 4 elements");
         }
 
         let url =
@@ -268,7 +268,6 @@ impl Cheatcode for eth_getLogsCall {
                 removed: log.removed,
             })
             .collect::<Vec<_>>();
-
         Ok(eth_logs.abi_encode())
     }
 }

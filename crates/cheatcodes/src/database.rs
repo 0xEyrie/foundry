@@ -5,7 +5,6 @@ use spec::Vm::{
     commitTransactionCall, commitTransactionsCall, connectDbCall, executeCall,
     executeInTransactionCall, openTransactionCall, queryCall, queryInTransactionCall, queryOptCall,
     queryOptInTransactionCall, rollbackTransactionCall, rollbackTransactionsCall,
-    PostgresDb as VmSQLDatabse,
 };
 use uuid::Uuid;
 
@@ -15,15 +14,6 @@ mod client;
 mod error;
 pub use client::{DatabaseClient, PostgresClient};
 use error::Error;
-
-#[derive(Debug, Clone)]
-pub(crate) struct SQLDatabase {
-    pub host: String,
-    pub port: u64,
-    pub user: String,
-    pub password: String,
-    pub name: String,
-}
 
 trait ToParam {
     fn with_params<F, R>(&self, f: F) -> R
@@ -46,34 +36,23 @@ impl ToParam for Vec<Bytes> {
     }
 }
 
-impl SQLDatabase {
-    pub fn new<DBClient: DatabaseClient>(&self) -> Result<DBClient, Error> {
-        let conn_str = format!(
-            "host={} port={} user={} password={} dbname={}",
-            self.host, self.port, self.user, self.password, self.name
-        );
-        let client = Client::connect(&conn_str, NoTls)?;
-        Ok(DBClient::new(client))
-    }
-}
-
-impl From<VmSQLDatabse> for SQLDatabase {
-    fn from(vmsqldb: VmSQLDatabse) -> Self {
-        SQLDatabase {
-            host: vmsqldb.host,
-            port: vmsqldb.port.to(),
-            user: vmsqldb.user,
-            password: vmsqldb.password,
-            name: vmsqldb.name,
-        }
-    }
+fn new_client<DBClient: DatabaseClient>(
+    host: &String,
+    port: &u16,
+    user: &String,
+    password: &String,
+    name: &String,
+) -> Result<DBClient, Error> {
+    let conn_str =
+        format!("host={} port={} user={} password={} dbname={}", host, port, user, password, name);
+    let client = Client::connect(&conn_str, NoTls)?;
+    Ok(DBClient::new(client))
 }
 
 impl Cheatcode for connectDbCall {
     fn apply(&self, state: &mut Cheatcodes) -> Result {
-        let Self { sqldb: db } = self;
-        let sql_db = SQLDatabase::from(db.clone());
-        let client = sql_db.new().unwrap();
+        let Self { host, port, user, password, name } = self;
+        let client = new_client(host, port, user, password, name).unwrap();
         state.set_db_client(client);
         Ok(Default::default())
     }

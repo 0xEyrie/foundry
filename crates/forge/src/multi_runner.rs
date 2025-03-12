@@ -280,9 +280,45 @@ impl MultiContractRunner {
         // index
         contracts.par_iter().for_each(|&(id, contract)| {
             let _guard = tokio_handle.enter();
-            let result = self.run_test_suite(id, contract, &db, filter, &tokio_handle, None);
+            let result = self.run_indexer_suite(id, contract, &db, filter, &tokio_handle);
             let _ = tx.send((id.identifier(), result));
         })
+    }
+
+    fn run_indexer_suite(
+        &self,
+        artifact_id: &ArtifactId,
+        contract: &TestContract,
+        db: &Backend,
+        filter: &dyn TestFilter,
+        tokio_handle: &tokio::runtime::Handle,
+    ) -> SuiteResult {
+        let identifier = artifact_id.identifier();
+        let mut span_name = identifier.as_str();
+
+        if !enabled!(tracing::Level::TRACE) {
+            span_name = get_contract_name(&identifier);
+        }
+        let span = debug_span!("suite", name = %span_name);
+        let span_local = span.clone();
+        let _guard = span_local.enter();
+
+        debug!("start executing all indexers in contract");
+
+        let runner = ContractRunner::new(
+            &identifier,
+            contract,
+            self.tcfg.executor(self.known_contracts.clone(), artifact_id, db.clone()),
+            None,
+            tokio_handle,
+            span,
+            self,
+        );
+        let r = runner.run_tests(filter);
+
+        debug!(duration=?r.duration, "executed all indexers in contract");
+
+        r
     }
 
     // pub fn index(&mut self, filter: &dyn TestFilter, tx: mpsc::Sender<(String, SuiteResult)>) {
@@ -602,4 +638,9 @@ pub fn matches_contract(id: &ArtifactId, abi: &JsonAbi, filter: &dyn TestFilter)
 /// Returns `true` if the function is a test function that matches the given filter.
 pub(crate) fn is_matching_test(func: &Function, filter: &dyn TestFilter) -> bool {
     func.is_any_test() && filter.matches_test(&func.signature())
+}
+
+/// Returns `true` if the function is a iterate function.
+pub(crate) fn is_matching_iterate(func: &Function) -> bool {
+    func.is_iterate_event_logs() || func.is_iterate_blocks()
 }

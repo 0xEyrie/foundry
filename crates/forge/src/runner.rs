@@ -1,40 +1,62 @@
 //! The Forge test runner.
 
 use crate::{
-    fuzz::{invariant::BasicTxDetails, BaseCounterExample},
-    multi_runner::{is_matching_test, TestContract, TestRunnerConfig},
-    progress::{start_fuzz_progress, TestsProgress},
-    result::{SuiteResult, TestResult, TestSetup},
-    MultiContractRunner, TestFilter,
+    fuzz::{ invariant::BasicTxDetails, BaseCounterExample },
+    multi_runner::{ is_matching_test, TestContract, TestRunnerConfig },
+    progress::{ start_fuzz_progress, TestsProgress },
+    result::{ SuiteResult, TestResult, TestSetup },
+    MultiContractRunner,
+    TestFilter,
 };
 use alloy_dyn_abi::DynSolValue;
 use alloy_json_abi::Function;
-use alloy_primitives::{address, map::HashMap, Address, U256};
+use alloy_primitives::{ address, map::HashMap, Address, U256 };
+use alloy_provider::Provider;
+use alloy_rpc_types::Filter;
 use eyre::Result;
-use foundry_common::{contracts::ContractsByAddress, TestFunctionExt, TestFunctionKind};
-use foundry_config::Config;
+use foundry_common::{
+    contracts::ContractsByAddress,
+    fs::read_to_string,
+    provider::ProviderBuilder,
+    TestFunctionExt,
+    TestFunctionKind,
+};
+use foundry_config::{ parse_with_profile, Config };
 use foundry_evm::{
     constants::CALLER,
     decode::RevertDecoder,
     executors::{
         fuzz::FuzzedExecutor,
         invariant::{
-            check_sequence, replay_error, replay_run, InvariantExecutor, InvariantFuzzError,
+            check_sequence,
+            replay_error,
+            replay_run,
+            InvariantExecutor,
+            InvariantFuzzError,
         },
-        CallResult, EvmError, Executor, ITest, RawCallResult,
+        CallResult,
+        EvmError,
+        Executor,
+        ITest,
+        RawCallResult,
     },
     fuzz::{
         fixture_name,
-        invariant::{CallDetails, InvariantContract},
-        CounterExample, FuzzFixtures,
+        invariant::{ CallDetails, InvariantContract },
+        CounterExample,
+        FuzzFixtures,
     },
-    traces::{load_contracts, TraceKind, TraceMode},
+    traces::{ load_contracts, TraceKind, TraceMode },
 };
 use proptest::test_runner::{
-    FailurePersistence, FileFailurePersistence, RngAlgorithm, TestRng, TestRunner,
+    FailurePersistence,
+    FileFailurePersistence,
+    RngAlgorithm,
+    TestRng,
+    TestRunner,
 };
 use rayon::prelude::*;
-use std::{borrow::Cow, cmp::min, collections::BTreeMap, sync::Arc, time::Instant};
+use std::{ borrow::Cow, cmp::min, collections::BTreeMap, sync::Arc, time::Instant };
 use tracing::Span;
 
 /// When running tests, we deploy all external libraries present in the project. To avoid additional
@@ -81,7 +103,7 @@ impl<'a> ContractRunner<'a> {
         progress: Option<&'a TestsProgress>,
         tokio_handle: &'a tokio::runtime::Handle,
         span: Span,
-        mcr: &'a MultiContractRunner,
+        mcr: &'a MultiContractRunner
     ) -> Self {
         Self {
             name,
@@ -128,7 +150,7 @@ impl<'a> ContractRunner<'a> {
                 LIBRARY_DEPLOYER,
                 code.clone(),
                 U256::ZERO,
-                Some(&self.mcr.revert_decoder),
+                Some(&self.mcr.revert_decoder)
             );
 
             // Record deployed library address.
@@ -156,7 +178,7 @@ impl<'a> ContractRunner<'a> {
             self.sender,
             self.contract.bytecode.clone(),
             U256::ZERO,
-            Some(&self.mcr.revert_decoder),
+            Some(&self.mcr.revert_decoder)
         );
         if let Ok(dr) = &deploy_result {
             debug_assert_eq!(dr.address, address);
@@ -209,8 +231,9 @@ impl<'a> ContractRunner<'a> {
     /// Returns the configuration for a contract or function.
     fn inline_config(&self, func: Option<&Function>) -> Result<Config> {
         let function = func.map(|f| f.name.as_str()).unwrap_or("");
-        let config =
-            self.mcr.inline_config.merge(self.name, function, &self.config).extract::<Config>()?;
+        let config = self.mcr.inline_config
+            .merge(self.name, function, &self.config)
+            .extract::<Config>()?;
         Ok(config)
     }
 
@@ -235,8 +258,15 @@ impl<'a> ContractRunner<'a> {
         for func in fixture_functions {
             if func.inputs.is_empty() {
                 // Read fixtures declared as functions.
-                if let Ok(CallResult { raw: _, decoded_result }) =
-                    self.executor.call(CALLER, address, func, &[], U256::ZERO, None)
+                if
+                    let Ok(CallResult { raw: _, decoded_result }) = self.executor.call(
+                        CALLER,
+                        address,
+                        func,
+                        &[],
+                        U256::ZERO,
+                        None
+                    )
                 {
                     fixtures.insert(fixture_name(func.name.clone()), decoded_result);
                 }
@@ -246,14 +276,16 @@ impl<'a> ContractRunner<'a> {
                 let mut vals = Vec::new();
                 let mut index = 0;
                 loop {
-                    if let Ok(CallResult { raw: _, decoded_result }) = self.executor.call(
-                        CALLER,
-                        address,
-                        func,
-                        &[DynSolValue::Uint(U256::from(index), 256)],
-                        U256::ZERO,
-                        None,
-                    ) {
+                    if
+                        let Ok(CallResult { raw: _, decoded_result }) = self.executor.call(
+                            CALLER,
+                            address,
+                            func,
+                            &[DynSolValue::Uint(U256::from(index), 256)],
+                            U256::ZERO,
+                            None
+                        )
+                    {
                         vals.push(decoded_result);
                     } else {
                         // No result returned for this index, we reached the end of storage
@@ -263,7 +295,7 @@ impl<'a> ContractRunner<'a> {
                     index += 1;
                 }
                 fixtures.insert(fixture_name(func.name.clone()), DynSolValue::Array(vals));
-            };
+            }
         }
         FuzzFixtures::new(fixtures)
     }
@@ -274,16 +306,20 @@ impl<'a> ContractRunner<'a> {
         let mut warnings = Vec::new();
 
         // Check if `setUp` function with valid signature declared.
-        let setup_fns: Vec<_> =
-            self.contract.abi.functions().filter(|func| func.name.is_setup()).collect();
+        let setup_fns: Vec<_> = self.contract.abi
+            .functions()
+            .filter(|func| func.name.is_setup())
+            .collect();
         let call_setup = setup_fns.len() == 1 && setup_fns[0].name == "setUp";
         // There is a single miss-cased `setUp` function, so we add a warning
         for &setup_fn in setup_fns.iter() {
             if setup_fn.name != "setUp" {
-                warnings.push(format!(
-                    "Found invalid setup function \"{}\" did you mean \"setUp()\"?",
-                    setup_fn.signature()
-                ));
+                warnings.push(
+                    format!(
+                        "Found invalid setup function \"{}\" did you mean \"setUp()\"?",
+                        setup_fn.signature()
+                    )
+                );
             }
         }
 
@@ -291,34 +327,43 @@ impl<'a> ContractRunner<'a> {
         if setup_fns.len() > 1 {
             return SuiteResult::new(
                 start.elapsed(),
-                [("setUp()".to_string(), TestResult::fail("multiple setUp functions".to_string()))]
-                    .into(),
-                warnings,
-            )
+                [
+                    (
+                        "setUp()".to_string(),
+                        TestResult::fail("multiple setUp functions".to_string()),
+                    ),
+                ].into(),
+                warnings
+            );
         }
 
         // Check if `afterInvariant` function with valid signature declared.
-        let after_invariant_fns: Vec<_> =
-            self.contract.abi.functions().filter(|func| func.name.is_after_invariant()).collect();
+        let after_invariant_fns: Vec<_> = self.contract.abi
+            .functions()
+            .filter(|func| func.name.is_after_invariant())
+            .collect();
         if after_invariant_fns.len() > 1 {
             // Return a single test result failure if multiple functions declared.
             return SuiteResult::new(
                 start.elapsed(),
-                [(
-                    "afterInvariant()".to_string(),
-                    TestResult::fail("multiple afterInvariant functions".to_string()),
-                )]
-                .into(),
-                warnings,
-            )
+                [
+                    (
+                        "afterInvariant()".to_string(),
+                        TestResult::fail("multiple afterInvariant functions".to_string()),
+                    ),
+                ].into(),
+                warnings
+            );
         }
         let call_after_invariant = after_invariant_fns.first().is_some_and(|after_invariant_fn| {
             let match_sig = after_invariant_fn.name == "afterInvariant";
             if !match_sig {
-                warnings.push(format!(
-                    "Found invalid afterInvariant function \"{}\" did you mean \"afterInvariant()\"?",
-                    after_invariant_fn.signature()
-                ));
+                warnings.push(
+                    format!(
+                        "Found invalid afterInvariant function \"{}\" did you mean \"afterInvariant()\"?",
+                        after_invariant_fn.signature()
+                    )
+                );
             }
             match_sig
         });
@@ -343,16 +388,14 @@ impl<'a> ContractRunner<'a> {
             return SuiteResult::new(
                 start.elapsed(),
                 [("setUp()".to_string(), TestResult::setup_result(setup))].into(),
-                warnings,
-            )
+                warnings
+            );
         }
 
         // Filter out functions sequentially since it's very fast and there is no need to do it
         // in parallel.
         let find_timer = Instant::now();
-        let functions = self
-            .contract
-            .abi
+        let functions = self.contract.abi
             .functions()
             .filter(|func| is_matching_test(func, filter))
             .collect::<Vec<_>>();
@@ -360,11 +403,14 @@ impl<'a> ContractRunner<'a> {
             "Found {} test functions out of {} in {:?}",
             functions.len(),
             self.contract.abi.functions().count(),
-            find_timer.elapsed(),
+            find_timer.elapsed()
         );
 
         let identified_contracts = has_invariants.then(|| {
-            load_contracts(setup.traces.iter().map(|(_, t)| &t.arena), &self.mcr.known_contracts)
+            load_contracts(
+                setup.traces.iter().map(|(_, t)| &t.arena),
+                &self.mcr.known_contracts
+            )
         });
         let test_results = functions
             .par_iter()
@@ -382,18 +428,18 @@ impl<'a> ContractRunner<'a> {
                 let sig = func.signature();
                 let kind = func.test_function_kind();
 
-                let _guard = debug_span!(
+                let _guard =
+                    debug_span!(
                     "test",
                     %kind,
                     name = %if enabled!(tracing::Level::TRACE) { &sig } else { &func.name },
-                )
-                .entered();
+                ).entered();
 
                 let mut res = FunctionRunner::new(&self, &setup).run(
                     func,
                     kind,
                     call_after_invariant,
-                    identified_contracts.as_ref(),
+                    identified_contracts.as_ref()
                 );
                 res.duration = start.elapsed();
 
@@ -402,9 +448,7 @@ impl<'a> ContractRunner<'a> {
             .collect::<BTreeMap<_, _>>();
 
         let duration = start.elapsed();
-        let test_fail_deprecations = self
-            .contract
-            .abi
+        let test_fail_deprecations = self.contract.abi
             .functions()
             .filter_map(|func| {
                 TestFunctionKind::classify(&func.name, !func.inputs.is_empty())
@@ -415,9 +459,11 @@ impl<'a> ContractRunner<'a> {
             .join(", ");
 
         if !test_fail_deprecations.is_empty() {
-            warnings.push(format!(
-                "`testFail*` has been deprecated and will be removed in the next release. Consider changing to test_Revert[If|When]_Condition and expecting a revert. Found deprecated testFail* function(s): {test_fail_deprecations}.",
-            ));
+            warnings.push(
+                format!(
+                    "`testFail*` has been deprecated and will be removed in the next release. Consider changing to test_Revert[If|When]_Condition and expecting a revert. Found deprecated testFail* function(s): {test_fail_deprecations}."
+                )
+            );
         }
         SuiteResult::new(duration, test_results, warnings)
     }
@@ -482,7 +528,7 @@ impl<'a> FunctionRunner<'a> {
         func: &Function,
         kind: TestFunctionKind,
         call_after_invariant: bool,
-        identified_contracts: Option<&ContractsByAddress>,
+        identified_contracts: Option<&ContractsByAddress>
     ) -> TestResult {
         if let Err(e) = self.apply_function_inline_config(func) {
             self.result.single_fail(Some(e.to_string()));
@@ -495,6 +541,8 @@ impl<'a> FunctionRunner<'a> {
             TestFunctionKind::InvariantTest => {
                 self.run_invariant_test(func, call_after_invariant, identified_contracts.unwrap())
             }
+            TestFunctionKind::IterateBlocks => todo!(),
+            TestFunctionKind::IterateEventLogs => todo!(),
             _ => unreachable!(),
         }
     }
@@ -514,14 +562,16 @@ impl<'a> FunctionRunner<'a> {
         }
 
         // Run current unit test.
-        let (mut raw_call_result, reason) = match self.executor.call(
-            self.sender,
-            self.address,
-            func,
-            &[],
-            U256::ZERO,
-            Some(self.revert_decoder()),
-        ) {
+        let (mut raw_call_result, reason) = match
+            self.executor.call(
+                self.sender,
+                self.address,
+                func,
+                &[],
+                U256::ZERO,
+                Some(self.revert_decoder())
+            )
+        {
             Ok(res) => (res.raw, None),
             Err(EvmError::Execution(err)) => (err.raw, Some(err.reason)),
             Err(EvmError::Skip(reason)) => {
@@ -534,8 +584,11 @@ impl<'a> FunctionRunner<'a> {
             }
         };
 
-        let success =
-            self.executor.is_raw_call_mut_success(self.address, &mut raw_call_result, should_fail);
+        let success = self.executor.is_raw_call_mut_success(
+            self.address,
+            &mut raw_call_result,
+            should_fail
+        );
         self.result.single_result(success, reason, raw_call_result);
         self.result
     }
@@ -544,20 +597,22 @@ impl<'a> FunctionRunner<'a> {
         mut self,
         func: &Function,
         call_after_invariant: bool,
-        identified_contracts: &ContractsByAddress,
+        identified_contracts: &ContractsByAddress
     ) -> TestResult {
         // First, run the test normally to see if it needs to be skipped.
-        if let Err(EvmError::Skip(reason)) = self.executor.call(
-            self.sender,
-            self.address,
-            func,
-            &[],
-            U256::ZERO,
-            Some(self.revert_decoder()),
-        ) {
+        if
+            let Err(EvmError::Skip(reason)) = self.executor.call(
+                self.sender,
+                self.address,
+                func,
+                &[],
+                U256::ZERO,
+                Some(self.revert_decoder())
+            )
+        {
             self.result.invariant_skip(reason);
             return self.result;
-        };
+        }
 
         let runner = self.invariant_runner();
         let invariant_config = &self.config.invariant;
@@ -567,7 +622,7 @@ impl<'a> FunctionRunner<'a> {
             runner,
             invariant_config.clone(),
             identified_contracts,
-            &self.cr.mcr.known_contracts,
+            &self.cr.mcr.known_contracts
         );
         let invariant_contract = InvariantContract {
             address: self.address,
@@ -580,8 +635,10 @@ impl<'a> FunctionRunner<'a> {
         let failure_file = failure_dir.join(&invariant_contract.invariant_function.name);
 
         // Try to replay recorded failure if any.
-        if let Ok(call_sequence) =
-            foundry_common::fs::read_json_file::<Vec<BaseCounterExample>>(failure_file.as_path())
+        if
+            let Ok(call_sequence) = foundry_common::fs::read_json_file::<Vec<BaseCounterExample>>(
+                failure_file.as_path()
+            )
         {
             // Create calls from failed sequence and check if invariant still broken.
             let txes = call_sequence
@@ -594,17 +651,20 @@ impl<'a> FunctionRunner<'a> {
                     },
                 })
                 .collect::<Vec<BasicTxDetails>>();
-            if let Ok((success, replayed_entirely)) = check_sequence(
-                self.clone_executor(),
-                &txes,
-                (0..min(txes.len(), invariant_config.depth as usize)).collect(),
-                invariant_contract.address,
-                invariant_contract.invariant_function.selector().to_vec().into(),
-                invariant_config.fail_on_revert,
-                invariant_contract.call_after_invariant,
-            ) {
+            if
+                let Ok((success, replayed_entirely)) = check_sequence(
+                    self.clone_executor(),
+                    &txes,
+                    (0..min(txes.len(), invariant_config.depth as usize)).collect(),
+                    invariant_contract.address,
+                    invariant_contract.invariant_function.selector().to_vec().into(),
+                    invariant_config.fail_on_revert,
+                    invariant_contract.call_after_invariant
+                )
+            {
                 if !success {
-                    let _= sh_warn!("\
+                    let _ = sh_warn!(
+                        "\
                             Replayed invariant failure from {:?} file. \
                             Run `forge clean` or remove file to ignore failure and to continue invariant test campaign.",
                         failure_file.as_path()
@@ -620,26 +680,32 @@ impl<'a> FunctionRunner<'a> {
                         &mut self.result.traces,
                         &mut self.result.coverage,
                         &mut self.result.deprecated_cheatcodes,
-                        &txes,
+                        &txes
                     );
                     self.result.invariant_replay_fail(
                         replayed_entirely,
                         &invariant_contract.invariant_function.name,
-                        call_sequence,
+                        call_sequence
                     );
                     return self.result;
                 }
             }
         }
 
-        let progress =
-            start_fuzz_progress(self.cr.progress, self.cr.name, &func.name, invariant_config.runs);
-        let invariant_result = match evm.invariant_fuzz(
-            invariant_contract.clone(),
-            &self.setup.fuzz_fixtures,
-            &self.setup.deployed_libs,
-            progress.as_ref(),
-        ) {
+        let progress = start_fuzz_progress(
+            self.cr.progress,
+            self.cr.name,
+            &func.name,
+            invariant_config.runs
+        );
+        let invariant_result = match
+            evm.invariant_fuzz(
+                invariant_contract.clone(),
+                &self.setup.fuzz_fixtures,
+                &self.setup.deployed_libs,
+                progress.as_ref()
+            )
+        {
             Ok(x) => x,
             Err(e) => {
                 self.result.invariant_setup_fail(e);
@@ -655,13 +721,58 @@ impl<'a> FunctionRunner<'a> {
 
         match invariant_result.error {
             // If invariants were broken, replay the error to collect logs and traces
-            Some(error) => match error {
-                InvariantFuzzError::BrokenInvariant(case_data) |
-                InvariantFuzzError::Revert(case_data) => {
-                    // Replay error to create counterexample and to collect logs, traces and
-                    // coverage.
-                    match replay_error(
-                        &case_data,
+            Some(error) =>
+                match error {
+                    | InvariantFuzzError::BrokenInvariant(case_data)
+                    | InvariantFuzzError::Revert(case_data) => {
+                        // Replay error to create counterexample and to collect logs, traces and
+                        // coverage.
+                        match
+                            replay_error(
+                                &case_data,
+                                &invariant_contract,
+                                self.clone_executor(),
+                                &self.cr.mcr.known_contracts,
+                                identified_contracts.clone(),
+                                &mut self.result.logs,
+                                &mut self.result.traces,
+                                &mut self.result.coverage,
+                                &mut self.result.deprecated_cheatcodes,
+                                progress.as_ref()
+                            )
+                        {
+                            Ok(call_sequence) => {
+                                if !call_sequence.is_empty() {
+                                    // Persist error in invariant failure dir.
+                                    if
+                                        let Err(err) =
+                                            foundry_common::fs::create_dir_all(failure_dir)
+                                    {
+                                        error!(%err, "Failed to create invariant failure dir");
+                                    } else if
+                                        let Err(err) = foundry_common::fs::write_json_file(
+                                            failure_file.as_path(),
+                                            &call_sequence
+                                        )
+                                    {
+                                        error!(%err, "Failed to record call sequence");
+                                    }
+                                    counterexample = Some(CounterExample::Sequence(call_sequence));
+                                }
+                            }
+                            Err(err) => {
+                                error!(%err, "Failed to replay invariant error");
+                            }
+                        };
+                    }
+                    InvariantFuzzError::MaxAssumeRejects(_) => {}
+                }
+
+            // If invariants ran successfully, replay the last run to collect logs and
+            // traces.
+            _ => {
+                if
+                    let Err(err) = replay_run(
                         &invariant_contract,
                         self.clone_executor(),
                         &self.cr.mcr.known_contracts,
@@ -670,44 +781,9 @@ impl<'a> FunctionRunner<'a> {
                         &mut self.result.traces,
                         &mut self.result.coverage,
                         &mut self.result.deprecated_cheatcodes,
-                        progress.as_ref(),
-                    ) {
-                        Ok(call_sequence) => {
-                            if !call_sequence.is_empty() {
-                                // Persist error in invariant failure dir.
-                                if let Err(err) = foundry_common::fs::create_dir_all(failure_dir) {
-                                    error!(%err, "Failed to create invariant failure dir");
-                                } else if let Err(err) = foundry_common::fs::write_json_file(
-                                    failure_file.as_path(),
-                                    &call_sequence,
-                                ) {
-                                    error!(%err, "Failed to record call sequence");
-                                }
-                                counterexample = Some(CounterExample::Sequence(call_sequence))
-                            }
-                        }
-                        Err(err) => {
-                            error!(%err, "Failed to replay invariant error");
-                        }
-                    };
-                }
-                InvariantFuzzError::MaxAssumeRejects(_) => {}
-            },
-
-            // If invariants ran successfully, replay the last run to collect logs and
-            // traces.
-            _ => {
-                if let Err(err) = replay_run(
-                    &invariant_contract,
-                    self.clone_executor(),
-                    &self.cr.mcr.known_contracts,
-                    identified_contracts.clone(),
-                    &mut self.result.logs,
-                    &mut self.result.traces,
-                    &mut self.result.coverage,
-                    &mut self.result.deprecated_cheatcodes,
-                    &invariant_result.last_run_inputs,
-                ) {
+                        &invariant_result.last_run_inputs
+                    )
+                {
                     error!(%err, "Failed to replay last invariant run");
                 }
             }
@@ -720,7 +796,7 @@ impl<'a> FunctionRunner<'a> {
             counterexample,
             invariant_result.cases,
             invariant_result.reverts,
-            invariant_result.metrics,
+            invariant_result.metrics
         );
         self.result
     }
@@ -743,12 +819,20 @@ impl<'a> FunctionRunner<'a> {
         let runner = self.fuzz_runner();
         let fuzz_config = self.config.fuzz.clone();
 
-        let progress =
-            start_fuzz_progress(self.cr.progress, self.cr.name, &func.name, fuzz_config.runs);
+        let progress = start_fuzz_progress(
+            self.cr.progress,
+            self.cr.name,
+            &func.name,
+            fuzz_config.runs
+        );
 
         // Run fuzz test.
-        let fuzzed_executor =
-            FuzzedExecutor::new(self.executor.into_owned(), runner, self.tcfg.sender, fuzz_config);
+        let fuzzed_executor = FuzzedExecutor::new(
+            self.executor.into_owned(),
+            runner,
+            self.tcfg.sender,
+            fuzz_config
+        );
         let result = fuzzed_executor.fuzz(
             func,
             &self.setup.fuzz_fixtures,
@@ -756,10 +840,146 @@ impl<'a> FunctionRunner<'a> {
             self.address,
             should_fail,
             &self.cr.mcr.revert_decoder,
-            progress.as_ref(),
+            progress.as_ref()
         );
         self.result.fuzz_result(result);
         self.result
+    }
+
+    fn run_iterate_block(mut self, func: &Function) -> TestResult {
+        if self.prepare_test(func).is_err() {
+            return self.result;
+        }
+        let foundry_toml = self.config.root.join(Config::FILE_NAME);
+        let s = read_to_string(&foundry_toml).unwrap();
+        let config: Config = parse_with_profile(&s).unwrap().unwrap().1;
+        let config = config.iterate_config.unwrap();
+        let start = config.start.unwrap();
+        let end = config.end.unwrap();
+        let interval = config.interval.unwrap();
+
+        // TODO: handle end 0
+        let mut raw_call_result = RawCallResult::default();
+        let mut reason: Option<String> = None;
+        for bl in (start..=end).step_by(interval as usize) {
+            (raw_call_result, reason) = match
+                self.executor.call(
+                    self.sender,
+                    self.address,
+                    func,
+                    &[DynSolValue::Uint(U256::from(bl), 64)],
+                    U256::ZERO,
+                    Some(self.revert_decoder())
+                )
+            {
+                Ok(res) => (res.raw, None),
+                Err(EvmError::Execution(err)) => (err.raw, Some(err.reason)),
+                Err(EvmError::Skip(reason)) => {
+                    self.result.single_skip(reason);
+                    return self.result;
+                }
+                Err(err) => {
+                    self.result.single_fail(Some(err.to_string()));
+                    return self.result;
+                }
+            };
+
+            let success = self.executor.is_raw_call_mut_success(
+                self.address,
+                &mut raw_call_result,
+                false
+            );
+            if !success {
+                self.result.single_result(success, reason, raw_call_result);
+                return self.result;
+            }
+        }
+        self.result.single_result(true, reason, raw_call_result);
+        return self.result;
+    }
+
+    fn run_iterate_event_logs(mut self, func: &Function) -> TestResult {
+        if self.prepare_test(func).is_err() {
+            return self.result;
+        }
+
+        let foundry_toml = self.config.root.join(Config::FILE_NAME);
+        let s = read_to_string(&foundry_toml).unwrap();
+        let config: Config = parse_with_profile(&s).unwrap().unwrap().1;
+        let config = config.iterate_config.unwrap();
+        let start = config.start.unwrap();
+        let end = config.end.unwrap();
+        let target = config.target.unwrap();
+        let topics = config.topics.unwrap();
+        let url = config.url;
+
+        // TODO: handle end 0
+        let provider = ProviderBuilder::new(&url).build().unwrap();
+        let mut filter = Filter::new().address(target).from_block(start).to_block(end);
+        for (i, &topic) in topics.iter().enumerate() {
+            filter.topics[i] = topic.into();
+        }
+        if topics.len() > 4 {
+            panic!("topics array must contain at most 4 elements");
+        }
+
+        let logs = foundry_common::block_on(provider.get_logs(&filter)).unwrap();
+        let mut raw_call_result = RawCallResult::default();
+        let mut reason: Option<String> = None;
+        for log in logs {
+            let eth_log: DynSolValue = DynSolValue::Tuple(
+                vec![
+                    DynSolValue::Address(log.address()),
+                    DynSolValue::Array(
+                        log
+                            .topics()
+                            .iter()
+                            .map(|t| DynSolValue::FixedBytes(*t, 32))
+                            .collect()
+                    ),
+                    DynSolValue::Bytes(log.inner.data.data.to_vec()),
+                    DynSolValue::FixedBytes(log.block_hash.unwrap_or_default(), 32),
+                    log.block_number.unwrap_or_default().into(),
+                    DynSolValue::FixedBytes(log.transaction_hash.unwrap_or_default(), 32),
+                    log.transaction_index.unwrap_or_default().into(),
+                    DynSolValue::Uint(U256::from(log.log_index.unwrap_or_default()), 32),
+                    DynSolValue::Bool(log.removed)
+                ]
+            );
+            (raw_call_result, reason) = match
+                self.executor.call(
+                    self.sender,
+                    self.address,
+                    func,
+                    &[eth_log],
+                    U256::ZERO,
+                    Some(self.revert_decoder())
+                )
+            {
+                Ok(res) => (res.raw, None),
+                Err(EvmError::Execution(err)) => (err.raw, Some(err.reason)),
+                Err(EvmError::Skip(reason)) => {
+                    self.result.single_skip(reason);
+                    return self.result;
+                }
+                Err(err) => {
+                    self.result.single_fail(Some(err.to_string()));
+                    return self.result;
+                }
+            };
+
+            let success = self.executor.is_raw_call_mut_success(
+                self.address,
+                &mut raw_call_result,
+                false
+            );
+            if !success {
+                self.result.single_result(success, reason, raw_call_result);
+                return self.result;
+            }
+        }
+        self.result.single_result(true, reason, raw_call_result);
+        return self.result;
     }
 
     /// Prepares single unit test and fuzz test execution:
@@ -775,24 +995,22 @@ impl<'a> FunctionRunner<'a> {
         let address = self.setup.address;
 
         // Apply before test configured functions (if any).
-        if self.cr.contract.abi.functions().filter(|func| func.name.is_before_test_setup()).count() ==
-            1
+        if
+            self.cr.contract.abi
+                .functions()
+                .filter(|func| func.name.is_before_test_setup())
+                .count() == 1
         {
-            for calldata in self
-                .executor
-                .call_sol_default(
-                    address,
-                    &ITest::beforeTestSetupCall { testSelector: func.selector() },
-                )
-                .beforeTestCalldata
-            {
+            for calldata in self.executor.call_sol_default(
+                address,
+                &(ITest::beforeTestSetupCall { testSelector: func.selector() })
+            ).beforeTestCalldata {
                 // Apply before test configured calldata.
-                match self.executor.to_mut().transact_raw(
-                    self.tcfg.sender,
-                    address,
-                    calldata,
-                    U256::ZERO,
-                ) {
+                match
+                    self.executor
+                        .to_mut()
+                        .transact_raw(self.tcfg.sender, address, calldata, U256::ZERO)
+                {
                     Ok(call_result) => {
                         let reverted = call_result.reverted;
 
@@ -817,8 +1035,7 @@ impl<'a> FunctionRunner<'a> {
 
     fn fuzz_runner(&self) -> TestRunner {
         let config = &self.config.fuzz;
-        let failure_persist_path = config
-            .failure_persist_dir
+        let failure_persist_path = config.failure_persist_dir
             .as_ref()
             .unwrap()
             .join(config.failure_persist_file.as_ref().unwrap())
@@ -829,7 +1046,7 @@ impl<'a> FunctionRunner<'a> {
             config.seed,
             config.runs,
             config.max_test_rejects,
-            Some(Box::new(FileFailurePersistence::Direct(failure_persist_path.leak()))),
+            Some(Box::new(FileFailurePersistence::Direct(failure_persist_path.leak())))
         )
     }
 
@@ -847,7 +1064,7 @@ fn fuzzer_with_cases(
     seed: Option<U256>,
     cases: u32,
     max_global_rejects: u32,
-    file_failure_persistence: Option<Box<dyn FailurePersistence>>,
+    file_failure_persistence: Option<Box<dyn FailurePersistence>>
 ) -> TestRunner {
     let config = proptest::test_runner::Config {
         failure_persistence: file_failure_persistence,

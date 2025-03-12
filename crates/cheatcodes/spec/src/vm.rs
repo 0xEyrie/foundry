@@ -83,6 +83,7 @@ interface Vm {
         ScriptBroadcast,
         /// `forge script --resume` execution context.
         ScriptResume,
+
         /// Unknown `forge` execution context.
         Unknown,
     }
@@ -322,15 +323,6 @@ interface Vm {
         /// Address of the contract implementation that will be delegated to.
         /// Gets encoded into delegation code: 0xef0100 || implementation.
         address implementation;
-    }
-
-    /// SQL Database options
-    struct PostgresDb {
-        string host;
-        uint256 port;
-        string user;
-        string password;
-        string name;
     }
 
     // ======== EVM ========
@@ -2716,7 +2708,7 @@ interface Vm {
 
     /// Connect SQL Database
     #[cheatcode(group = Database, safety = Safe)]
-    function connectDb(PostgresDb sqldb) external;
+    function connectDb(string calldata host, uint16 port,string calldata user,string calldata password, string calldata name) external;
 
     /// Open transaction and automatically commit all of transactions in end execution
     #[cheatcode(group = Database, safety = Safe)]

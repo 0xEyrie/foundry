@@ -303,7 +303,7 @@ impl SuiteResult {
             failed.red(),
             self.skipped().yellow(),
             self.duration,
-            self.total_time(),
+            self.total_time()
         )
     }
 }

@@ -3491,16 +3491,16 @@
       "func": {
         "id": "connectDb",
         "description": "Connect SQL Database",
-        "declaration": "function connectDb(PostgresDb sqldb) external;",
+        "declaration": "function connectDb(string calldata host, uint16 port, string calldata user, string calldata password, string calldata name) external;",
         "visibility": "external",
         "mutability": "",
-        "signature": "connectDb((string,uint256,string,string,string))",
-        "selector": "0x631ac903",
+        "signature": "connectDb(string,uint16,string,string,string)",
+        "selector": "0x481f0808",
         "selectorBytes": [
-          99,
-          26,
-          201,
-          3
+          72,
+          31,
+          8,
+          8
         ]
       },
       "group": "database",

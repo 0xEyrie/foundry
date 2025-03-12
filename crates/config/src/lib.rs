@@ -124,6 +124,8 @@ use bind_json::BindJsonConfig;
 mod compilation;
 use compilation::{CompilationRestrictions, SettingsOverrides};
 
+mod iterate;
+use iterate::IterateConfig;
 /// Foundry configuration
 ///
 /// # Defaults
@@ -355,6 +357,9 @@ pub struct Config {
     pub block_prevrandao: B256,
     /// The `block.gaslimit` value during EVM execution.
     pub block_gas_limit: Option<GasLimit>,
+
+    /// iterate configuration
+    pub iterate_config: Option<IterateConfig>,
     /// The memory limit per EVM execution in bytes.
     /// If this limit is exceeded, a `MemoryLimitOOG` result is thrown.
     ///
@@ -579,7 +584,8 @@ impl Config {
         address!("4e59b44847b379578588920ca78fbf26c0b4956c");
 
     /// Docker image with eof-enabled solc binary
-    pub const EOF_SOLC_IMAGE: &'static str = "ghcr.io/paradigmxyz/forge-eof@sha256:46f868ce5264e1190881a3a335d41d7f42d6f26ed20b0c823609c715e38d603f";
+    pub const EOF_SOLC_IMAGE: &'static str =
+        "ghcr.io/paradigmxyz/forge-eof@sha256:46f868ce5264e1190881a3a335d41d7f42d6f26ed20b0c823609c715e38d603f";
 
     /// Returns the current `Config`
     ///
@@ -1405,8 +1411,12 @@ impl Config {
                     config.key.clone_from(key);
                     return Ok(Some(config));
                 }
-                (Ok(config), None) => return Ok(Some(config)),
-                (Err(err), None) => return Err(err),
+                (Ok(config), None) => {
+                    return Ok(Some(config));
+                }
+                (Err(err), None) => {
+                    return Err(err);
+                }
                 (Err(_), Some(_)) => {
                     // use the etherscan key as fallback
                 }
@@ -1518,7 +1528,7 @@ impl Config {
             }
         }
 
-        let mut settings = Settings {
+        let mut settings = (Settings {
             libraries: self.libraries_with_remappings()?,
             optimizer: self.optimizer(),
             evm_version: Some(self.evm_version),
@@ -1541,7 +1551,7 @@ impl Config {
             // Set with `with_extra_output` below.
             output_selection: Default::default(),
             eof_version: self.eof_version,
-        }
+        })
         .with_extra_output(self.configured_artifacts_handler().output_selection());
 
         // We're keeping AST in `--build-info` for backwards compatibility with HardHat.
@@ -1966,7 +1976,9 @@ impl Config {
                 for entry in entries.flatten().filter(|x| x.path().is_dir()) {
                     match Chain::from_str(&entry.file_name().to_string_lossy()) {
                         Ok(chain) => cache.chains.push(Self::list_foundry_chain_cache(chain)?),
-                        Err(_) => continue,
+                        Err(_) => {
+                            continue;
+                        }
                     }
                 }
                 Ok(cache)
@@ -2336,6 +2348,7 @@ impl Default for Config {
             block_difficulty: 0,
             block_prevrandao: Default::default(),
             block_gas_limit: None,
+            iterate_config: None,
             disable_block_gas_limit: false,
             memory_limit: 1 << 27, // 2**27 = 128MiB = 134_217_728 bytes
             eth_rpc_url: None,
@@ -2421,7 +2434,7 @@ impl Serialize for GasLimit {
     {
         if self.0 == u64::MAX {
             serializer.serialize_str("max")
-        } else if self.0 > i64::MAX as u64 {
+        } else if self.0 > (i64::MAX as u64) {
             serializer.serialize_str(&self.0.to_string())
         } else {
             serializer.serialize_u64(self.0)
@@ -2497,13 +2510,15 @@ impl BasicConfig {
     /// This serializes to a table with the name of the profile
     pub fn to_string_pretty(&self) -> Result<String, toml::ser::Error> {
         let s = toml::to_string_pretty(self)?;
-        Ok(format!(
-            "\
+        Ok(
+            format!(
+                "\
 [profile.{}]
 {s}
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options\n",
-            self.profile
-        ))
+                self.profile
+            )
+        )
     }
 }
 
@@ -2812,8 +2827,8 @@ mod tests {
                 config.remappings,
                 vec![
                     Remapping::from_str("file-ds-test/=lib/ds-test/").unwrap().into(),
-                    Remapping::from_str("file-other/=lib/other/").unwrap().into(),
-                ],
+                    Remapping::from_str("file-other/=lib/other/").unwrap().into()
+                ]
             );
 
             jail.set_env("DAPP_REMAPPINGS", "ds-test=lib/ds-test/\nother/=lib/other/");
@@ -2827,8 +2842,8 @@ mod tests {
                     Remapping::from_str("other/=lib/other/").unwrap().into(),
                     // From remapping.txt (should have less precedence than remapping.txt)
                     Remapping::from_str("file-ds-test/=lib/ds-test/").unwrap().into(),
-                    Remapping::from_str("file-other/=lib/other/").unwrap().into(),
-                ],
+                    Remapping::from_str("file-other/=lib/other/").unwrap().into()
+                ]
             );
 
             Ok(())
@@ -2863,8 +2878,8 @@ mod tests {
                 config.remappings,
                 vec![
                     Remapping::from_str("ds-test/=lib/ds-test/").unwrap().into(),
-                    Remapping::from_str("other/=lib/other/").unwrap().into(),
-                ],
+                    Remapping::from_str("other/=lib/other/").unwrap().into()
+                ]
             );
 
             jail.set_env("DAPP_REMAPPINGS", "ds-test/=lib/ds-test/src/\nenv-lib/=lib/env-lib/");
@@ -2879,8 +2894,8 @@ mod tests {
                 vec![
                     Remapping::from_str("ds-test/=lib/ds-test/src/").unwrap().into(),
                     Remapping::from_str("env-lib/=lib/env-lib/").unwrap().into(),
-                    Remapping::from_str("other/=lib/other/").unwrap().into(),
-                ],
+                    Remapping::from_str("other/=lib/other/").unwrap().into()
+                ]
             );
 
             // contains additional remapping to the source dir
@@ -2889,8 +2904,8 @@ mod tests {
                 vec![
                     Remapping::from_str("ds-test/=lib/ds-test/src/").unwrap(),
                     Remapping::from_str("env-lib/=lib/env-lib/").unwrap(),
-                    Remapping::from_str("other/=lib/other/").unwrap(),
-                ],
+                    Remapping::from_str("other/=lib/other/").unwrap()
+                ]
             );
 
             Ok(())
@@ -2913,7 +2928,7 @@ mod tests {
             config.update_libs().unwrap();
 
             let config = Config::load();
-            assert_eq!(config.libs, vec![PathBuf::from("node_modules"), PathBuf::from("libs"),]);
+            assert_eq!(config.libs, vec![PathBuf::from("node_modules"), PathBuf::from("libs")]);
             Ok(())
         });
     }
@@ -3052,7 +3067,7 @@ mod tests {
                             chain: Some(NamedChain::Mainnet.into()),
                             browser_url: Some(mainnet_urls.1.to_string()),
                             key: "FX42Z3BBJJEWXWGYV2X1CIPRSCN".to_string(),
-                        }
+                        },
                     ),
                     (
                         "moonbeam",
@@ -3061,7 +3076,7 @@ mod tests {
                             chain: Some(Moonbeam.into()),
                             browser_url: Some(mb_urls.1.to_string()),
                             key: "123456789".to_string(),
-                        }
+                        },
                     ),
                 ])
             );
@@ -3182,7 +3197,7 @@ mod tests {
                arbitrum_alias = { key = "${TEST_RESOLVE_RPC_ALIAS_ARBISCAN}" }
                [rpc_endpoints]
                arbitrum_alias = "https://arb-mainnet.g.alchemy.com/v2/${TEST_RESOLVE_RPC_ALIAS_ARB_ONE}"
-            "#,
+            "#
             )?;
 
             jail.set_env("TEST_RESOLVE_RPC_ALIAS_ARB_ONE", "123455");
@@ -3192,7 +3207,10 @@ mod tests {
 
             let config = config.get_etherscan_config_with_chain(Some(NamedChain::Arbitrum.into()));
             assert!(config.is_err());
-            assert_eq!(config.unwrap_err().to_string(), "At least one of `url` or `chain` must be present for Etherscan config with unknown alias `arbitrum_alias`");
+            assert_eq!(
+                config.unwrap_err().to_string(),
+                "At least one of `url` or `chain` must be present for Etherscan config with unknown alias `arbitrum_alias`"
+            );
 
             Ok(())
         });
@@ -3207,7 +3225,7 @@ mod tests {
                 [rpc_endpoints]
                 optimism = "https://example.com/"
                 mainnet = { endpoint = "${_CONFIG_MAINNET}", retries = 3, retry_backoff = 1000, compute_units_per_second = 1000 }
-            "#,
+            "#
             )?;
             jail.set_env("_CONFIG_MAINNET", "https://eth-mainnet.alchemyapi.io/v2/123455");
 
@@ -3218,7 +3236,7 @@ mod tests {
                         "optimism",
                         RpcEndpointType::String(RpcEndpointUrl::Url(
                             "https://example.com/".to_string()
-                        ))
+                        )),
                     ),
                     (
                         "mainnet",
@@ -3230,7 +3248,7 @@ mod tests {
                                 compute_units_per_second: Some(1000),
                             },
                             auth: None,
-                        })
+                        }),
                     ),
                 ]),
                 config.rpc_endpoints
@@ -3243,7 +3261,7 @@ mod tests {
                         "optimism",
                         RpcEndpointType::String(RpcEndpointUrl::Url(
                             "https://example.com/".to_string()
-                        ))
+                        )),
                     ),
                     (
                         "mainnet",
@@ -3255,7 +3273,7 @@ mod tests {
                                 compute_units_per_second: Some(1000),
                             },
                             auth: None,
-                        })
+                        }),
                     ),
                 ])
                 .resolved(),
@@ -3276,7 +3294,7 @@ mod tests {
                 [rpc_endpoints]
                 optimism = "https://example.com/"
                 mainnet = { endpoint = "${_CONFIG_MAINNET}", retries = 3, retry_backoff = 1000, compute_units_per_second = 1000, auth = "Bearer ${_CONFIG_AUTH}" }
-            "#,
+            "#
             )?;
 
             let config = Config::load();
@@ -3290,7 +3308,7 @@ mod tests {
                         "optimism",
                         RpcEndpointType::String(RpcEndpointUrl::Url(
                             "https://example.com/".to_string()
-                        ))
+                        )),
                     ),
                     (
                         "mainnet",
@@ -3299,10 +3317,10 @@ mod tests {
                             config: RpcEndpointConfig {
                                 retries: Some(3),
                                 retry_backoff: Some(1000),
-                                compute_units_per_second: Some(1000)
+                                compute_units_per_second: Some(1000),
                             },
                             auth: Some(RpcAuth::Env("Bearer ${_CONFIG_AUTH}".to_string())),
-                        })
+                        }),
                     ),
                 ]),
                 config.rpc_endpoints
@@ -3314,7 +3332,7 @@ mod tests {
                         "optimism",
                         RpcEndpointType::String(RpcEndpointUrl::Url(
                             "https://example.com/".to_string()
-                        ))
+                        )),
                     ),
                     (
                         "mainnet",
@@ -3325,10 +3343,10 @@ mod tests {
                             config: RpcEndpointConfig {
                                 retries: Some(3),
                                 retry_backoff: Some(1000),
-                                compute_units_per_second: Some(1000)
+                                compute_units_per_second: Some(1000),
                             },
                             auth: Some(RpcAuth::Raw("Bearer 123456".to_string())),
-                        })
+                        }),
                     ),
                 ])
                 .resolved(),
@@ -3352,7 +3370,7 @@ mod tests {
                 mainnet = "${_CONFIG_MAINNET}"
                 mainnet_2 = "https://eth-mainnet.alchemyapi.io/v2/${_CONFIG_API_KEY1}"
                 mainnet_3 = "https://eth-mainnet.alchemyapi.io/v2/${_CONFIG_API_KEY1}/${_CONFIG_API_KEY2}"
-            "#,
+            "#
             )?;
 
             let config = Config::load();
@@ -3377,19 +3395,19 @@ mod tests {
                         "mainnet",
                         RpcEndpointUrl::Url(
                             "https://eth-mainnet.alchemyapi.io/v2/123455".to_string()
-                        )
+                        ),
                     ),
                     (
                         "mainnet_2",
                         RpcEndpointUrl::Url(
                             "https://eth-mainnet.alchemyapi.io/v2/123456".to_string()
-                        )
+                        ),
                     ),
                     (
                         "mainnet_3",
                         RpcEndpointUrl::Url(
                             "https://eth-mainnet.alchemyapi.io/v2/123456/98765".to_string()
-                        )
+                        ),
                     ),
                 ])
                 .resolved()
@@ -3463,7 +3481,7 @@ mod tests {
 
                 [etherscan]
                 mumbai = { key = "https://etherscan-mumbai.com/", chain = 80001 , url =  "https://verifier-url.com/"}
-            "#,
+            "#
             )?;
 
             let config = Config::load();
@@ -3569,14 +3587,14 @@ mod tests {
                             "mainnet_2",
                             RpcEndpointUrl::Env(
                                 "https://eth-mainnet.alchemyapi.io/v2/${API_KEY}".to_string()
-                            )
+                            ),
                         ),
                         (
                             "mainnet_3",
                             RpcEndpointUrl::Env(
                                 "https://eth-mainnet.alchemyapi.io/v2/${API_KEY}/${ANOTHER_KEY}"
                                     .to_string()
-                            )
+                            ),
                         ),
                     ]),
                     build_info_path: Some("build-info".into()),
@@ -3682,7 +3700,7 @@ mod tests {
                 fail_on_revert = false
                 call_override = false
                 shrink_run_limit = 5000
-            "#,
+            "#
             )?;
 
             let config = Config::load_with_root(jail.directory());
@@ -3703,9 +3721,9 @@ mod tests {
                         "mainnet_2",
                         RpcEndpointUrl::Env(
                             "https://eth-mainnet.alchemyapi.io/v2/${API_KEY}".to_string()
-                        )
+                        ),
                     ),
-                ]),
+                ])
             );
 
             Ok(())
@@ -4095,12 +4113,12 @@ mod tests {
             assert_eq!(
                 config.libraries,
                 vec!["src/DssSpell.sol:DssExecLib:0x8De6DDbCd5053d32292AAA0D2105A32d108484a6"
-                    .to_string(),]
+                    .to_string()]
             );
 
             jail.set_env(
                 "DAPP_LIBRARIES",
-                "src/DssSpell.sol:DssExecLib:0x8De6DDbCd5053d32292AAA0D2105A32d108484a6,src/DssSpell.sol:DssExecLib:0x8De6DDbCd5053d32292AAA0D2105A32d108484a6",
+                "src/DssSpell.sol:DssExecLib:0x8De6DDbCd5053d32292AAA0D2105A32d108484a6,src/DssSpell.sol:DssExecLib:0x8De6DDbCd5053d32292AAA0D2105A32d108484a6"
             );
             let config = Config::load();
             assert_eq!(
@@ -4131,7 +4149,7 @@ mod tests {
                         './src/test/ChainlinkTWAP.t.sol:ChainlinkTWAP:0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5',
                         './src/SizeAuctionDiscount.sol:Math:0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c',
                     ]
-            ",
+            "
             )?;
             let config = Config::load();
 
@@ -4145,33 +4163,33 @@ mod tests {
                         BTreeMap::from([
                             (
                                 "Chainlink".to_string(),
-                                "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string()
+                                "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string(),
                             ),
                             (
                                 "Math".to_string(),
-                                "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string()
-                            )
-                        ])
+                                "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string(),
+                            ),
+                        ]),
                     ),
                     (
                         PathBuf::from("./src/SizeAuction.sol"),
                         BTreeMap::from([
                             (
                                 "ChainlinkTWAP".to_string(),
-                                "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string()
+                                "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string(),
                             ),
                             (
                                 "Math".to_string(),
-                                "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string()
-                            )
-                        ])
+                                "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string(),
+                            ),
+                        ]),
                     ),
                     (
                         PathBuf::from("./src/test/ChainlinkTWAP.t.sol"),
                         BTreeMap::from([(
                             "ChainlinkTWAP".to_string(),
-                            "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string()
-                        )])
+                            "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string(),
+                        ),]),
                     ),
                 ])
             );
@@ -4354,11 +4372,11 @@ mod tests {
                     contracts: BTreeMap::from([
                         (
                             format!("{}", dir.join("a.sol").display()),
-                            vec!["A1".to_string(), "A2".to_string()]
+                            vec!["A1".to_string(), "A2".to_string()],
                         ),
                         (
                             format!("{}", dir.join("b.sol").display()),
-                            vec!["B1".to_string(), "B2".to_string()]
+                            vec!["B1".to_string(), "B2".to_string()],
                         ),
                     ]),
                     engine: Some(ModelCheckerEngine::CHC),
@@ -4480,8 +4498,8 @@ mod tests {
                     src: "src".into(),
                     out: "out".into(),
                     libs: vec!["lib".into()],
-                    remappings: vec![]
-                }
+                    remappings: vec![],
+                },
             )
         );
     }
@@ -4504,7 +4522,7 @@ mod tests {
                 loaded.warnings,
                 vec![Warning::UnknownSection {
                     unknown_section: Profile::new("default"),
-                    source: Some("foundry.toml".into())
+                    source: Some("foundry.toml".into()),
                 }]
             );
 
@@ -4794,12 +4812,12 @@ mod tests {
                 AddressHashMap::from_iter(vec![
                     (
                         Address::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-                        "Uniswap V3: Factory".to_string()
+                        "Uniswap V3: Factory".to_string(),
                     ),
                     (
                         Address::from_str("0xC36442b4a4522E871399CD717aBDD847Ab11FE88").unwrap(),
-                        "Uniswap V3: Positions NFT".to_string()
-                    ),
+                        "Uniswap V3: Positions NFT".to_string(),
+                    )
                 ])
             );
 

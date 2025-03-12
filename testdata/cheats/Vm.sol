@@ -168,7 +168,7 @@ interface Vm {
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) external pure returns (address);
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) external pure returns (address);
     function computeCreateAddress(address deployer, uint256 nonce) external pure returns (address);
-    function connectDb(PostgresDb sqldb) external;
+    function connectDb(string calldata host, uint16 port, string calldata user, string calldata password, string calldata name) external;
     function contains(string calldata subject, string calldata search) external returns (bool result);
     function cool(address target) external;
     function copyFile(string calldata from, string calldata to) external returns (uint64 copied);

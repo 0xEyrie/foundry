@@ -931,7 +931,7 @@ impl Cheatcodes {
             let ctx =
                 MockCallDataContext { calldata: call.input.clone(), value: call.transfer_value() };
 
-            if let Some(return_data_queue) = (match mocks.get_mut(&ctx) {
+            if let Some(return_data_queue) = match mocks.get_mut(&ctx) {
                 Some(queue) => Some(queue),
                 None => mocks
                     .iter_mut()
@@ -940,7 +940,7 @@ impl Cheatcodes {
                             mock.value.is_none_or(|value| Some(value) == call.transfer_value())
                     })
                     .map(|(_, v)| v),
-            }) {
+            } {
                 if let Some(return_data) = (if return_data_queue.len() == 1 {
                     // If the mocked calls stack has a single element in it, don't empty it
                     return_data_queue.front().map(|x| x.to_owned())
