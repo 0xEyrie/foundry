@@ -163,6 +163,8 @@ interface Vm {
     function cloneAccount(address source, address target) external;
     function closeFile(string calldata path) external;
     function coinbase(address newCoinbase) external;
+    function commitTransaction(uint128 transactionId) external;
+    function commitTransactions() external;
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) external pure returns (address);
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) external pure returns (address);
     function computeCreateAddress(address deployer, uint256 nonce) external pure returns (address);
@@ -226,6 +228,8 @@ interface Vm {
     function envUint(string calldata name, string calldata delim) external view returns (uint256[] memory value);
     function etch(address target, bytes calldata newRuntimeBytecode) external;
     function eth_getLogs(uint256 fromBlock, uint256 toBlock, address target, bytes32[] calldata topics) external returns (EthGetLogs[] memory logs);
+    function execute(string calldata query, bytes[] calldata params) external returns (uint64);
+    function executeInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params) external returns (uint64);
     function exists(string calldata path) external view returns (bool result);
     function expectCallMinGas(address callee, uint256 msgValue, uint64 minGas, bytes calldata data) external;
     function expectCallMinGas(address callee, uint256 msgValue, uint64 minGas, bytes calldata data, uint64 count) external;
@@ -318,6 +322,7 @@ interface Vm {
     function mockCalls(address callee, bytes calldata data, bytes[] calldata returnData) external;
     function mockCalls(address callee, uint256 msgValue, bytes calldata data, bytes[] calldata returnData) external;
     function mockFunction(address callee, address target, bytes calldata data) external;
+    function openTransaction() external returns (uint128);
     function parseAddress(string calldata stringifiedValue) external pure returns (address parsedValue);
     function parseBool(string calldata stringifiedValue) external pure returns (bool parsedValue);
     function parseBytes(string calldata stringifiedValue) external pure returns (bytes memory parsedValue);
@@ -379,7 +384,10 @@ interface Vm {
     function promptSecretUint(string calldata promptText) external returns (uint256);
     function promptUint(string calldata promptText) external returns (uint256);
     function publicKeyP256(uint256 privateKey) external pure returns (uint256 publicKeyX, uint256 publicKeyY);
-    function queryDb(uint128 id, string calldata query) external returns (string memory);
+    function query(string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[][] memory);
+    function queryInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[][] memory);
+    function queryOpt(string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[] memory);
+    function queryOptInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[] memory);
     function randomAddress() external returns (address);
     function randomBool() external view returns (bool);
     function randomBytes(uint256 len) external view returns (bytes memory);
@@ -421,6 +429,8 @@ interface Vm {
     function rollFork(bytes32 txHash) external;
     function rollFork(uint256 forkId, uint256 blockNumber) external;
     function rollFork(uint256 forkId, bytes32 txHash) external;
+    function rollbackTransaction(uint128 transactionId) external;
+    function rollbackTransactions() external;
     function rpcUrl(string calldata rpcAlias) external view returns (string memory json);
     function rpcUrlStructs() external view returns (Rpc[] memory urls);
     function rpcUrls() external view returns (string[2][] memory urls);

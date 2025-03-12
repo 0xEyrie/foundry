@@ -3389,6 +3389,46 @@
     },
     {
       "func": {
+        "id": "commitTransaction",
+        "description": "Commit transaction and close transaction",
+        "declaration": "function commitTransaction(uint128 transactionId) external;",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "commitTransaction(uint128)",
+        "selector": "0xbb452b51",
+        "selectorBytes": [
+          187,
+          69,
+          43,
+          81
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "commitTransactions",
+        "description": "Commit all of open transactions and close transaction",
+        "declaration": "function commitTransactions() external;",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "commitTransactions()",
+        "selector": "0x318292df",
+        "selectorBytes": [
+          49,
+          130,
+          146,
+          223
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
         "id": "computeCreate2Address_0",
         "description": "Compute the address of a contract created with CREATE2 using the given CREATE2 deployer.",
         "declaration": "function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) external pure returns (address);",
@@ -4648,6 +4688,46 @@
         ]
       },
       "group": "evm",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "execute",
+        "description": "Execute SQL to Database",
+        "declaration": "function execute(string calldata query, bytes[] calldata params) external returns (uint64);",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "execute(string,bytes[])",
+        "selector": "0xd85c1144",
+        "selectorBytes": [
+          216,
+          92,
+          17,
+          68
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "executeInTransaction",
+        "description": "Execute SQL in Database transaction",
+        "declaration": "function executeInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params) external returns (uint64);",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "executeInTransaction(uint128,string,bytes[])",
+        "selector": "0xf4cf70e2",
+        "selectorBytes": [
+          244,
+          207,
+          112,
+          226
+        ]
+      },
+      "group": "database",
       "status": "stable",
       "safety": "safe"
     },
@@ -6495,6 +6575,26 @@
     },
     {
       "func": {
+        "id": "openTransaction",
+        "description": "Open transaction and automatically commit all of transactions in end execution",
+        "declaration": "function openTransaction() external returns (uint128);",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "openTransaction()",
+        "selector": "0x891b70d2",
+        "selectorBytes": [
+          137,
+          27,
+          112,
+          210
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
         "id": "parseAddress",
         "description": "Parses the given `string` into an `address`.",
         "declaration": "function parseAddress(string calldata stringifiedValue) external pure returns (address parsedValue);",
@@ -7715,18 +7815,78 @@
     },
     {
       "func": {
-        "id": "queryDb",
+        "id": "query",
         "description": "Query SQL to Database",
-        "declaration": "function queryDb(uint128 id, string calldata query) external returns (string memory);",
+        "declaration": "function query(string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[][] memory);",
         "visibility": "external",
-        "mutability": "",
-        "signature": "queryDb(uint128,string)",
-        "selector": "0x9c4d372f",
+        "mutability": "view",
+        "signature": "query(string,bytes[],string[])",
+        "selector": "0x8842c35f",
         "selectorBytes": [
-          156,
-          77,
-          55,
-          47
+          136,
+          66,
+          195,
+          95
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "queryInTransaction",
+        "description": "Query SQL in Database transaction",
+        "declaration": "function queryInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[][] memory);",
+        "visibility": "external",
+        "mutability": "view",
+        "signature": "queryInTransaction(uint128,string,bytes[],string[])",
+        "selector": "0x0dfe8785",
+        "selectorBytes": [
+          13,
+          254,
+          135,
+          133
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "queryOpt",
+        "description": "Query SQL to Database",
+        "declaration": "function queryOpt(string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[] memory);",
+        "visibility": "external",
+        "mutability": "view",
+        "signature": "queryOpt(string,bytes[],string[])",
+        "selector": "0x1f7254da",
+        "selectorBytes": [
+          31,
+          114,
+          84,
+          218
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "queryOptInTransaction",
+        "description": "Query SQL in Database transaction",
+        "declaration": "function queryOptInTransaction(uint128 transactionId, string calldata query, bytes[] calldata params, string[] calldata selects) external view returns (bytes[] memory);",
+        "visibility": "external",
+        "mutability": "view",
+        "signature": "queryOptInTransaction(uint128,string,bytes[],string[])",
+        "selector": "0x977b1f1e",
+        "selectorBytes": [
+          151,
+          123,
+          31,
+          30
         ]
       },
       "group": "database",
@@ -8556,6 +8716,46 @@
       "group": "evm",
       "status": "stable",
       "safety": "unsafe"
+    },
+    {
+      "func": {
+        "id": "rollbackTransaction",
+        "description": "Rollback transaction and close transactions",
+        "declaration": "function rollbackTransaction(uint128 transactionId) external;",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "rollbackTransaction(uint128)",
+        "selector": "0x8d25e2ad",
+        "selectorBytes": [
+          141,
+          37,
+          226,
+          173
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
+    },
+    {
+      "func": {
+        "id": "rollbackTransactions",
+        "description": "Rollback all of transactions and close transactions",
+        "declaration": "function rollbackTransactions() external;",
+        "visibility": "external",
+        "mutability": "",
+        "signature": "rollbackTransactions()",
+        "selector": "0xcbc2f97a",
+        "selectorBytes": [
+          203,
+          194,
+          249,
+          122
+        ]
+      },
+      "group": "database",
+      "status": "stable",
+      "safety": "safe"
     },
     {
       "func": {
